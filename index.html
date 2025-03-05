@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ADAM New Leveling System Prototype</title>
+
+  <!-- (Optional) Bootstrap for quick styling -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
+
+  <style>
+    body {
+      margin: 20px;
+      font-family: sans-serif;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    .filter-section {
+      margin-bottom: 20px;
+    }
+    table thead th {
+      background-color: #f3f3f3;
+      font-weight: bold;
+    }
+    table tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+    .table-container {
+      max-width: 100%;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+    .summary-box {
+      max-width: 320px;
+      white-space: pre-wrap; 
+      word-wrap: break-word;
+    }
+    #loadingIndicator {
+      display: none; /* hidden by default */
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>New Leveling System Prototype</h1>
+
+  <!-- Language + Readability Filters -->
+  <div class="row filter-section">
+    <!-- Language -->
+    <div class="col-md-3 mb-3">
+      <label for="languageSelect" class="form-label">Choose Language:</label>
+      <select id="languageSelect" class="form-select">
+        <option value="">(Select language)</option>
+        <!-- Will fill in from languages.json -->
+      </select>
+    </div>
+    <!-- Readability -->
+    <div class="col-md-3 mb-3">
+      <label for="readabilitySelect" class="form-label">Readability:</label>
+      <select id="readabilitySelect" class="form-select">
+        <option value="all" selected>All</option>
+        <option value="Low">Low</option>
+        <option value="Medium">Medium</option>
+        <option value="High">High</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading indicator -->
+  <div id="loadingIndicator" class="alert alert-info">
+    Loading CSV(s), please wait...
+  </div>
+
+  <!-- Table -->
+  <div class="table-container">
+    <table id="articlesTable" class="table table-bordered table-sm">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Summary</th>
+          <th>Translated Summary</th>
+          <th>Language</th>
+          <th>RRF</th>
+          <th>Readability</th>
+          <th>Link</th>
+          <th>Cleaned Text</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Rows go here dynamically -->
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- Papa Parse for CSV -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+  // We'll store the language => CSV array mapping from languages.json
+  let languagesData = {};
+  // We'll store the combined CSV rows here
+  let combinedData = [];
+
+  // DOM references
+  const languageSelect = document.getElementById('languageSelect');
+  const readabilitySelect = document.getElementById('readabilitySelect');
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  const articlesTableBody = document.querySelector('#articlesTable tbody');
+
+  // 1) Fetch the JSON that tells us which CSVs map to which language
+  fetch('languages.json') 
+    .then(resp => resp.json())
+    .then(json => {
+      languagesData = json;
+      populateLanguageDropdown();
+    })
+    .catch(err => console.error('Error loading languages.json:', err));
+
+  // Once we have languages.json, we fill the language dropdown with the keys
+  function populateLanguageDropdown() {
+    // The language keys might be e.g. "arabic","russian","french","Mandarin"
+    const keys = Object.keys(languagesData);
+    keys.forEach(lang => {
+      const opt = document.createElement('option');
+      opt.value = lang;
+      opt.textContent = lang;
+      languageSelect.appendChild(opt);
+    });
+  }
+
+  // 2) When user selects a language, load all CSVs for that language
+  languageSelect.addEventListener('change', async () => {
+    const chosenLanguage = languageSelect.value;
+    if (!chosenLanguage) {
+      // If user picks no language, clear table
+      combinedData = [];
+      renderTable();
+      return;
+    }
+
+    // Show "loading"
+    loadingIndicator.style.display = 'block';
+    articlesTableBody.innerHTML = '';
+
+    // Get array of CSV paths
+    const csvPaths = languagesData[chosenLanguage] || [];
+
+    // We parse each CSV, accumulate results in combinedData
+    combinedData = [];
+    for (let path of csvPaths) {
+      // Use Papa Parse
+      try {
+        const results = await parseCsv(path);
+        // results is an array of row-objects from that CSV
+        // Merge into combinedData
+        combinedData = combinedData.concat(results);
+      } catch (err) {
+        console.warn('Error parsing CSV:', path, err);
+      }
+    }
+
+    // Hide "loading"
+    loadingIndicator.style.display = 'none';
+    // Render the table
+    renderTable();
+  });
+
+  // 3) Also re-render table if readability changes
+  readabilitySelect.addEventListener('change', renderTable);
+
+  // Helper: parse a CSV path with Papa, return array of data
+  function parseCsv(csvPath) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvPath, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          // results.data is an array of row objects
+          resolve(results.data);
+        },
+        error: function(err) {
+          reject(err);
+        }
+      });
+    });
+  }
+
+  // 4) RENDER TABLE
+  function renderTable() {
+    // Clear table
+    articlesTableBody.innerHTML = '';
+
+    // Grab chosen readability
+    const chosenReadability = readabilitySelect.value;
+
+    // Filter
+    const filtered = combinedData.filter(row => {
+      if (chosenReadability !== 'all' && row.readability !== chosenReadability) {
+        return false;
+      }
+      return true;
+    });
+
+    // Build rows
+    filtered.forEach(item => {
+      const tr = document.createElement('tr');
+
+      // Title
+      const tdTitle = document.createElement('td');
+      tdTitle.textContent = item.title || '';
+      tr.appendChild(tdTitle);
+
+      // Summary
+      const tdSummary = document.createElement('td');
+      tdSummary.className = 'summary-box';
+      tdSummary.textContent = item.summary || '';
+      tr.appendChild(tdSummary);
+
+      // Translated Summary
+      const tdTranslated = document.createElement('td');
+      tdTranslated.className = 'summary-box';
+      tdTranslated.textContent = item.translated_summary || '';
+      tr.appendChild(tdTranslated);
+
+      // Language
+      const tdLang = document.createElement('td');
+      tdLang.textContent = item.language || '';
+      tr.appendChild(tdLang);
+
+      // RRF
+      const tdRrf = document.createElement('td');
+      tdRrf.textContent = item.rrf || '';
+      tr.appendChild(tdRrf);
+
+      // Readability
+      const tdRead = document.createElement('td');
+      tdRead.textContent = item.readability || '';
+      tr.appendChild(tdRead);
+
+      // Link
+      const tdLink = document.createElement('td');
+      if (item.link) {
+        const a = document.createElement('a');
+        a.href = item.link;
+        a.target = '_blank';
+        a.textContent = 'Open';
+        tdLink.appendChild(a);
+      }
+      tr.appendChild(tdLink);
+
+      // Cleaned Text
+      const tdCleaned = document.createElement('td');
+      tdCleaned.className = 'summary-box';
+      tdCleaned.textContent = item.clean_text || '';
+      tr.appendChild(tdCleaned);
+
+      articlesTableBody.appendChild(tr);
+    });
+  }
+</script>
+</body>
+</html>
