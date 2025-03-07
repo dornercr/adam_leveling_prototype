@@ -223,21 +223,10 @@
       tdSummary.textContent = item.summary || '';
       tr.appendChild(tdSummary);
 
-      // Translated Summary
-      const tdTranslated = document.createElement('td');
-      tdTranslated.className = 'summary-box';
-      tdTranslated.textContent = item.translated_summary || '';
-      tr.appendChild(tdTranslated);
-
       // Language
       const tdLang = document.createElement('td');
       tdLang.textContent = item.language || '';
       tr.appendChild(tdLang);
-
-      // RRF
-      const tdRrf = document.createElement('td');
-      tdRrf.textContent = item.rrf || '';
-      tr.appendChild(tdRrf);
 
       // Readability
       const tdRead = document.createElement('td');
