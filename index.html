@@ -82,9 +82,8 @@
         <tr>
           <th>Title</th>
           <th>Summary</th>
-          <th>Translated Summary</th>
           <th>Language</th>
-          <th>RRF</th>
+          <th>Score</th>
           <th>Readability</th>
           <th>Link</th>
           <th>Cleaned Text</th>
@@ -154,11 +153,9 @@
     // We parse each CSV, accumulate results in combinedData
     combinedData = [];
     for (let path of csvPaths) {
-      // Use Papa Parse
       try {
         const results = await parseCsv(path);
         // results is an array of row-objects from that CSV
-        // Merge into combinedData
         combinedData = combinedData.concat(results);
       } catch (err) {
         console.warn('Error parsing CSV:', path, err);
@@ -227,6 +224,11 @@
       const tdLang = document.createElement('td');
       tdLang.textContent = item.language || '';
       tr.appendChild(tdLang);
+
+      // Score
+      const tdScore = document.createElement('td');
+      tdScore.textContent = item.score || '';
+      tr.appendChild(tdScore);
 
       // Readability
       const tdRead = document.createElement('td');
